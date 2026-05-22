@@ -1,32 +1,56 @@
 'use client'
 
+// Este arquivo é a tela principal do Orquestra Contábil.
+// Ele controla o dashboard, empresas, uploads, conciliação, memória IA e exportação.
+// Como estamos usando Next.js/React, este componente roda no lado do cliente.
 import { useEffect, useState } from 'react'
 
+// URL do backend FastAPI.
+// Tudo que o frontend faz passa por essa API:
+// cadastrar empresa, importar arquivos, conciliar e buscar memória.
 const API_URL = 'https://backend3-m916.onrender.com'
 
 export default function Home() {
+  // A variável "view" controla qual tela está aberta no sistema.
+  // Exemplo: dashboard, empresas, plano, extrato, conciliação, memória ou exportação.
   const [view, setView] = useState('dashboard')
-  const [empresas, setEmpresas] = useState([])
-  const [empresaAtual, setEmpresaAtual] = useState(null)
+  // Lista com todas as empresas cadastradas no backend.
+  const [empresas, setEmpresas] = useState<any[]>([])
+  // Empresa selecionada no momento. Todo plano, extrato e memória ficam ligados a ela.
+  const [empresaAtual, setEmpresaAtual] = useState<any>(null)
+  // Campos usados no formulário de cadastro de empresa.
   const [empresaNome, setEmpresaNome] = useState('')
   const [empresaCnpj, setEmpresaCnpj] = useState('')
+  // Campo de busca para filtrar empresas por nome ou CNPJ.
   const [buscaEmpresa, setBuscaEmpresa] = useState('')
-  const [plano, setPlano] = useState([])
-  const [balancete, setBalancete] = useState([])
-  const [extrato, setExtrato] = useState([])
-  const [conciliacao, setConciliacao] = useState([])
-  const [memoria, setMemoria] = useState([])
+  // Plano de contas importado da empresa atual.
+  const [plano, setPlano] = useState<any[]>([])
+  // Balancete importado da empresa atual.
+  const [balancete, setBalancete] = useState<any[]>([])
+  // Extrato bancário importado da empresa atual.
+  const [extrato, setExtrato] = useState<any[]>([])
+  // Resultado da conciliação feita pela IA/backend.
+  const [conciliacao, setConciliacao] = useState<any[]>([])
+  // Memória IA da empresa: classificações aprendidas automaticamente.
+  const [memoria, setMemoria] = useState<any[]>([])
+  // Mensagem temporária que aparece para o usuário, como alerta ou confirmação.
   const [mensagem, setMensagem] = useState('')
 
+  // Assim que a tela abre, buscamos as empresas já cadastradas.
+  // Isso alimenta a lista lateral/tela de empresas.
   useEffect(() => {
     carregarEmpresas()
   }, [])
 
-  function avisar(texto) {
+  // Mostra uma mensagem curta na tela e depois limpa automaticamente.
+  // Usamos isso para avisar sucesso, erro ou ação concluída.
+  function avisar(texto: string) {
     setMensagem(texto)
     setTimeout(() => setMensagem(''), 3500)
   }
 
+  // Busca todas as empresas no backend.
+  // Rota usada: GET /empresas
   async function carregarEmpresas() {
     try {
       const res = await fetch(`${API_URL}/empresas`)
@@ -37,6 +61,8 @@ export default function Home() {
     }
   }
 
+  // Busca a memória IA da empresa atual.
+  // A memória guarda classificações que o sistema já aprendeu.
   async function carregarMemoria() {
     try {
       const res = await fetch(`${API_URL}/memoria`)
@@ -47,6 +73,8 @@ export default function Home() {
     }
   }
 
+  // Cadastra uma nova empresa no backend.
+  // Depois de cadastrar, ela já vira a empresa selecionada.
   async function cadastrarEmpresa() {
     if (!empresaNome.trim()) {
       avisar('Informe o nome da empresa.')
@@ -68,7 +96,7 @@ export default function Home() {
       }
 
       setEmpresaAtual(data.empresa)
-      setEmpresas((old) => [...old, data.empresa])
+      setEmpresas((old: any[]) => [...old, data.empresa])
       setEmpresaNome('')
       setEmpresaCnpj('')
       avisar('Empresa cadastrada e selecionada.')
@@ -77,7 +105,9 @@ export default function Home() {
     }
   }
 
-  async function selecionarEmpresa(id) {
+  // Seleciona uma empresa existente.
+  // Ao selecionar, traz junto plano de contas, balancetes e extratos daquela empresa.
+  async function selecionarEmpresa(id: number) {
     try {
       const res = await fetch(`${API_URL}/empresa/selecionar`, {
         method: 'POST',
@@ -106,6 +136,8 @@ export default function Home() {
   }
 
 
+  // Apaga uma empresa cadastrada.
+  // Antes de apagar, pedimos confirmação para evitar exclusão acidental.
   async function apagarEmpresa(id: number) {
     const confirmar = window.confirm(
       'Tem certeza que deseja apagar esta empresa? Essa ação não poderá ser desfeita.'
@@ -121,7 +153,7 @@ export default function Home() {
       const data = await res.json()
 
       if (data.sucesso) {
-        setEmpresas((old) => old.filter((emp) => emp.id !== id))
+        setEmpresas((old: any[]) => old.filter((emp: any) => emp.id !== id))
 
         if (empresaAtual?.id === id) {
           setEmpresaAtual(null)
@@ -141,13 +173,18 @@ export default function Home() {
     }
   }
 
-  async function enviarArquivo(endpoint, file) {
+  // Função genérica de upload.
+  // Ela serve para plano de contas, balancete e extrato.
+  // O parâmetro "endpoint" define para qual rota do backend o arquivo será enviado.
+  async function enviarArquivo(endpoint: string, file: File) {
     if (!empresaAtual && endpoint !== 'upload-balancete') {
       avisar('Selecione ou cadastre uma empresa primeiro.')
       setView('empresas')
       return
     }
 
+    // FormData é usado porque estamos enviando arquivo,
+    // não apenas texto ou JSON.
     const formData = new FormData()
     formData.append('arquivo', file)
 
@@ -164,13 +201,15 @@ export default function Home() {
         return
       }
 
+      // Alguns uploads, principalmente balancete, podem identificar/criar empresa automaticamente.
+      // Quando isso acontece, atualizamos a empresa atual no frontend.
       if (data.empresa_atual) {
         setEmpresaAtual(data.empresa_atual)
 
-        setEmpresas((old) => {
-          const existe = old.some((e) => e.id === data.empresa_atual.id)
+        setEmpresas((old: any[]) => {
+          const existe = old.some((e: any) => e.id === data.empresa_atual.id)
           if (existe) {
-            return old.map((e) => e.id === data.empresa_atual.id ? data.empresa_atual : e)
+            return old.map((e: any) => e.id === data.empresa_atual.id ? data.empresa_atual : e)
           }
           return [...old, data.empresa_atual]
         })
@@ -201,6 +240,9 @@ export default function Home() {
     }
   }
 
+  // Executa a conciliação contábil.
+  // O frontend envia plano de contas + extrato para o backend.
+  // O backend devolve os lançamentos sugeridos com débito, crédito, status e confiança.
   async function executarConciliacao() {
     if (!empresaAtual) {
       avisar('Selecione uma empresa primeiro.')
@@ -237,10 +279,12 @@ export default function Home() {
     }
   }
 
+  // Gera um CSV com o resultado da conciliação.
+  // Isso permite exportar os lançamentos para conferência ou integração futura.
   function gerarCSV() {
     const cabecalho = ['empresa', 'data', 'historico', 'debito', 'credito', 'valor', 'documento', 'status', 'confianca', 'observacao']
 
-    const linhas = conciliacao.map((item) => [
+    const linhas = conciliacao.map((item: any) => [
       empresaAtual?.nome || '',
       item.data || '',
       item.historico || '',
@@ -254,10 +298,11 @@ export default function Home() {
     ])
 
     return [cabecalho, ...linhas]
-      .map((linha) => linha.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';'))
+      .map((linha: any[]) => linha.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(';'))
       .join('\n')
   }
 
+  // Baixa o CSV gerado no navegador do usuário.
   function baixarCSV() {
     if (!conciliacao.length) {
       avisar('Não há conciliação para exportar.')
@@ -271,14 +316,20 @@ export default function Home() {
     link.click()
   }
 
-  const empresasFiltradas = empresas.filter((emp) =>
+  // Filtro usado na tela de empresas.
+  // Permite pesquisar tanto por nome quanto por CNPJ.
+  const empresasFiltradas = empresas.filter((emp: any) =>
     `${emp.nome || ''} ${emp.cnpj || ''}`.toLowerCase().includes(buscaEmpresa.toLowerCase())
   )
 
-  const conciliados = conciliacao.filter((x) => x.status === 'Conciliado').length
-  const revisao = conciliacao.filter((x) => x.status !== 'Conciliado').length
+  // Indicadores usados no dashboard.
+  // Calculamos quantos lançamentos foram conciliados e a taxa de acerto.
+  const conciliados = conciliacao.filter((x: any) => x.status === 'Conciliado').length
+  const revisao = conciliacao.filter((x: any) => x.status !== 'Conciliado').length
   const taxa = conciliacao.length ? Math.round((conciliados / conciliacao.length) * 100) : 0
 
+  // Menu principal da sidebar.
+  // Cada item muda a "view", ou seja, a tela exibida.
   const menus = [
     ['dashboard', 'Dashboard'],
     ['empresas', 'Empresas'],
@@ -291,8 +342,11 @@ export default function Home() {
   ]
 
   return (
+    // Estrutura visual principal do sistema.
+    // O layout usa tema escuro premium com destaque em ciano.
     <main className="min-h-screen bg-[#020617] text-white">
       <div className="flex">
+        {/* Sidebar fixa com marca, empresa atual, menu e fluxo operacional. */}
         <aside className="fixed left-0 top-0 flex h-screen w-[294px] flex-col border-r border-cyan-400/10 bg-[#030817] px-6 py-7">
           <div className="text-[30px] font-black tracking-tight">
             Orquestra<span className="text-cyan-400">Contábil</span>
@@ -309,7 +363,7 @@ export default function Home() {
           </div>
 
           <div className="mt-8 space-y-3">
-            {menus.map(([id, nome]) => (
+            {menus.map(([id, nome]: any[]) => (
               <button
                 key={id}
                 onClick={() => setView(id)}
@@ -337,6 +391,7 @@ export default function Home() {
           </div>
         </aside>
 
+        {/* Área principal onde cada tela é renderizada conforme a opção escolhida no menu. */}
         <section className="ml-[294px] flex-1 p-8">
           <Hero executar={executarConciliacao} />
 
@@ -348,6 +403,7 @@ export default function Home() {
             <Metric title="Taxa de Acerto" value={`${taxa}%`} subtitle="IA por empresa" />
           </div>
 
+          {/* Dashboard principal: visão geral, indicadores e fluxo da empresa atual. */}
           {view === 'dashboard' && (
             <div className="mt-8 grid gap-6 xl:grid-cols-2">
               <EmpresasPanel
@@ -382,6 +438,7 @@ export default function Home() {
             </div>
           )}
 
+          {/* Tela exclusiva para cadastro, pesquisa, seleção e exclusão de empresas. */}
           {view === 'empresas' && (
             <div className="mt-8">
               <EmpresasPanel
@@ -401,6 +458,7 @@ export default function Home() {
             </div>
           )}
 
+          {/* Tela de importação do plano de contas e balancete. */}
           {view === 'plano' && (
             <div className="mt-8 grid gap-6 xl:grid-cols-2">
               <UploadCard
@@ -408,20 +466,21 @@ export default function Home() {
                 subtitle="Estrutura fixa individual da empresa."
                 count={plano.length}
                 countLabel="contas carregadas"
-                onFile={(file) => enviarArquivo('upload-plano', file)}
+                onFile={(file: File) => enviarArquivo('upload-plano', file)}
               />
               <UploadCard
                 title="Balancete"
                 subtitle="Saldos e movimentações do período."
                 count={balancete.length}
                 countLabel="linhas carregadas"
-                onFile={(file) => enviarArquivo('upload-balancete', file)}
+                onFile={(file: File) => enviarArquivo('upload-balancete', file)}
               />
               <DataPreview title="Prévia do Plano de Contas" data={plano} />
               <DataPreview title="Prévia do Balancete" data={balancete} />
             </div>
           )}
 
+          {/* Tela de importação do extrato bancário. */}
           {view === 'extrato' && (
             <div className="mt-8">
               <UploadCard
@@ -429,20 +488,23 @@ export default function Home() {
                 subtitle="Importe OFX, PDF ou CSV bancário."
                 count={extrato.length}
                 countLabel="movimentos carregados"
-                onFile={(file) => enviarArquivo('upload-extrato', file)}
+                onFile={(file: File) => enviarArquivo('upload-extrato', file)}
               />
               <DataPreview title="Movimentos Importados" data={extrato} />
             </div>
           )}
 
+          {/* Tela onde o usuário executa e visualiza a conciliação. */}
           {view === 'conciliacao' && (
             <ConciliacaoPanel conciliacao={conciliacao} executar={executarConciliacao} />
           )}
 
+          {/* Tela de memória IA, mostrando classificações aprendidas. */}
           {view === 'memoria' && (
             <MemoriaPanel memoria={memoria} />
           )}
 
+          {/* Tela de exportação dos lançamentos conciliados em CSV. */}
           {view === 'exportar' && (
             <div className="mt-8 rounded-[28px] border border-cyan-400/10 bg-[#061127] p-7">
               <div className="text-2xl font-black">Exportação</div>
@@ -456,6 +518,7 @@ export default function Home() {
             </div>
           )}
 
+          {/* Tela simples de configuração, mostrando a API conectada. */}
           {view === 'config' && (
             <div className="mt-8 rounded-[28px] border border-cyan-400/10 bg-[#061127] p-7">
               <div className="text-2xl font-black">Configurações</div>
@@ -474,7 +537,9 @@ export default function Home() {
   )
 }
 
-function Hero({ executar }) {
+// Banner principal do dashboard.
+// Ele apresenta o sistema e traz o botão de ação para executar a conciliação.
+function Hero({ executar }: any) {
   return (
     <div className="overflow-hidden rounded-[38px] border border-cyan-400/10 bg-gradient-to-br from-[#07142b] via-[#06152b] to-[#092f3e] p-10 shadow-[0_0_80px_rgba(34,211,238,.08)]">
       <div className="grid gap-10 xl:grid-cols-[1.15fr_.85fr]">
@@ -505,7 +570,9 @@ function Hero({ executar }) {
   )
 }
 
-function Metric({ title, value, subtitle }) {
+// Card pequeno de indicador.
+// Usado para mostrar empresas, contas, extratos, conciliações e taxa de acerto.
+function Metric({ title, value, subtitle }: any) {
   return (
     <div className="rounded-[28px] border border-cyan-400/10 bg-[#071120] p-6 shadow-[0_0_40px_rgba(34,211,238,.04)]">
       <div className="text-sm font-black text-cyan-300">{title}</div>
@@ -515,7 +582,9 @@ function Metric({ title, value, subtitle }) {
   )
 }
 
-function EmpresasPanel(props) {
+// Painel de empresas.
+// Aqui o usuário cadastra, pesquisa, seleciona e apaga empresas.
+function EmpresasPanel(props: any) {
   return (
     <div className="rounded-[30px] border border-cyan-400/10 bg-[#061127] p-7 shadow-[0_0_50px_rgba(34,211,238,.04)]">
       <div className="text-2xl font-black">Cadastro e Seleção de Empresas</div>
@@ -524,8 +593,8 @@ function EmpresasPanel(props) {
       <div className="mt-7 grid gap-6 xl:grid-cols-2">
         <div className="rounded-[26px] border border-white/10 bg-[#020b1b] p-6">
           <div className="text-xl font-black">Nova Empresa</div>
-          <input className="mt-5 w-full rounded-2xl border border-white/10 bg-[#091528] p-4 outline-none" placeholder="Nome da empresa" value={props.empresaNome} onChange={(e) => props.setEmpresaNome(e.target.value)} />
-          <input className="mt-4 w-full rounded-2xl border border-white/10 bg-[#091528] p-4 outline-none" placeholder="CNPJ" value={props.empresaCnpj} onChange={(e) => props.setEmpresaCnpj(e.target.value)} />
+          <input className="mt-5 w-full rounded-2xl border border-white/10 bg-[#091528] p-4 outline-none" placeholder="Nome da empresa" value={props.empresaNome} onChange={(e: any) => props.setEmpresaNome(e.target.value)} />
+          <input className="mt-4 w-full rounded-2xl border border-white/10 bg-[#091528] p-4 outline-none" placeholder="CNPJ" value={props.empresaCnpj} onChange={(e: any) => props.setEmpresaCnpj(e.target.value)} />
           <button onClick={props.cadastrarEmpresa} className="mt-5 w-full rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-4 font-black text-slate-950">
             Cadastrar Empresa
           </button>
@@ -536,15 +605,15 @@ function EmpresasPanel(props) {
             <div className="text-xl font-black">Empresas Cadastradas</div>
             <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-300">{props.empresas.length}</span>
           </div>
-          <input className="mt-5 w-full rounded-2xl border border-white/10 bg-[#091528] p-4 outline-none" placeholder="Pesquisar empresa..." value={props.buscaEmpresa} onChange={(e) => props.setBuscaEmpresa(e.target.value)} />
+          <input className="mt-5 w-full rounded-2xl border border-white/10 bg-[#091528] p-4 outline-none" placeholder="Pesquisar empresa..." value={props.buscaEmpresa} onChange={(e: any) => props.setBuscaEmpresa(e.target.value)} />
           <div className="mt-5 max-h-[330px] space-y-3 overflow-auto pr-2">
             {!props.empresas.length && <div className="text-slate-500">Nenhuma empresa cadastrada.</div>}
-            {props.empresasFiltradas.map((emp) => (
+            {props.empresasFiltradas.map((emp: any) => (
               <button key={emp.id} onClick={() => props.selecionarEmpresa(emp.id)} className={`w-full rounded-2xl border p-4 text-left transition ${props.empresaAtual?.id === emp.id ? 'border-cyan-400/40 bg-cyan-400/10' : 'border-white/10 bg-[#091528]'}`}>
                 <div className="font-black text-cyan-100">{emp.nome}</div>
                 <div className="mt-1 text-sm text-slate-400">{emp.cnpj || 'Sem CNPJ'}</div>
                 <button
-                  onClick={(e) => {
+                  onClick={(e: any) => {
                     e.stopPropagation()
                     props.apagarEmpresa(emp.id)
                   }}
@@ -561,13 +630,15 @@ function EmpresasPanel(props) {
   )
 }
 
-function ResumoEmpresa({ empresaAtual, plano, balancete, extrato, conciliacao }) {
+// Resumo visual da empresa atual.
+// Mostra o andamento do fluxo: plano, balancete, extrato, IA e revisão.
+function ResumoEmpresa({ empresaAtual, plano, balancete, extrato, conciliacao }: any) {
   const itens = [
     ['Plano de Contas', plano.length > 0],
     ['Balancete', balancete.length > 0],
     ['Extrato', extrato.length > 0],
     ['IA Inteligente', conciliacao.length > 0],
-    ['Revisão', conciliacao.some((x) => x.status !== 'Conciliado')],
+    ['Revisão', conciliacao.some((x: any) => x.status !== 'Conciliado')],
     ['Exportação', false]
   ]
 
@@ -587,7 +658,7 @@ function ResumoEmpresa({ empresaAtual, plano, balancete, extrato, conciliacao })
         </div>
 
         <div className="space-y-3">
-          {itens.map(([label, ok]) => (
+          {itens.map(([label, ok]: any[]) => (
             <div key={label} className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#020b1b] px-4 py-3">
               <span>{label}</span>
               <span className={ok ? 'text-emerald-300' : 'text-yellow-300'}>{ok ? 'Importado' : 'Pendente'}</span>
@@ -599,7 +670,9 @@ function ResumoEmpresa({ empresaAtual, plano, balancete, extrato, conciliacao })
   )
 }
 
-function FlowItem({ label, active }) {
+// Item pequeno do fluxo operacional na sidebar.
+// Fica ativo ou pendente conforme o andamento do processo.
+function FlowItem({ label, active }: any) {
   return (
     <div className="flex items-center gap-3">
       <div className={`h-3 w-3 rounded-full ${active ? 'bg-cyan-400 shadow-[0_0_18px_rgba(34,211,238,.8)]' : 'bg-slate-600'}`} />
@@ -608,13 +681,15 @@ function FlowItem({ label, active }) {
   )
 }
 
-function FluxoOperacional({ empresaAtual, plano, extrato, conciliacao }) {
+// Fluxo operacional maior, usado no dashboard.
+// Ajuda a mostrar a etapa atual do processo contábil.
+function FluxoOperacional({ empresaAtual, plano, extrato, conciliacao }: any) {
   const steps = [
     ['Empresa', !!empresaAtual],
     ['Plano de Contas', plano.length > 0],
     ['Extrato', extrato.length > 0],
     ['IA Inteligente', conciliacao.length > 0],
-    ['Revisão', conciliacao.some((x) => x.status !== 'Conciliado')],
+    ['Revisão', conciliacao.some((x: any) => x.status !== 'Conciliado')],
     ['Exportação', false]
   ]
 
@@ -624,7 +699,7 @@ function FluxoOperacional({ empresaAtual, plano, extrato, conciliacao }) {
       <p className="mt-2 text-slate-400">Acompanhe o processo contábil com IA.</p>
 
       <div className="mt-7 grid gap-4 xl:grid-cols-6">
-        {steps.map(([label, ok]) => (
+        {steps.map(([label, ok]: any[]) => (
           <div key={label} className={`rounded-[24px] border p-5 text-center ${ok ? 'border-cyan-400/30 bg-cyan-400/10' : 'border-white/10 bg-[#020b1b]'}`}>
             <div className="font-black">{label}</div>
             <div className={`mt-3 text-sm ${ok ? 'text-cyan-300' : 'text-slate-500'}`}>{ok ? 'Concluído' : 'Pendente'}</div>
@@ -635,7 +710,9 @@ function FluxoOperacional({ empresaAtual, plano, extrato, conciliacao }) {
   )
 }
 
-function UploadCard({ title, subtitle, count, countLabel, onFile }) {
+// Card reutilizável de upload.
+// O mesmo componente serve para plano de contas, balancete e extrato.
+function UploadCard({ title, subtitle, count, countLabel, onFile }: any) {
   return (
     <div className="rounded-[30px] border border-cyan-400/10 bg-[#061127] p-7">
       <div className="text-2xl font-black">{title}</div>
@@ -643,7 +720,7 @@ function UploadCard({ title, subtitle, count, countLabel, onFile }) {
       <label className="mt-7 block cursor-pointer rounded-[24px] border border-dashed border-cyan-400/30 bg-[#020b1b] p-8 text-center hover:bg-cyan-400/5">
         <div className="font-black text-cyan-300">Selecionar arquivo</div>
         <div className="mt-2 text-sm text-slate-500">CSV, PDF, OFX ou TXT</div>
-        <input type="file" accept=".csv,.xlsx,.xls,.pdf,.ofx,.txt" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+        <input type="file" accept=".csv,.xlsx,.xls,.pdf,.ofx,.txt" className="hidden" onChange={(e: any) => e.target.files?.[0] && onFile(e.target.files[0])} />
       </label>
       <div className="mt-7 rounded-2xl border border-cyan-400/10 bg-cyan-400/5 p-5">
         <div className="text-sm text-slate-400">{countLabel}</div>
@@ -653,7 +730,9 @@ function UploadCard({ title, subtitle, count, countLabel, onFile }) {
   )
 }
 
-function DataPreview({ title, data }) {
+// Prévia dos dados importados.
+// Ajuda a conferir rapidamente se o parser leu o arquivo corretamente.
+function DataPreview({ title, data }: any) {
   return (
     <div className="rounded-[30px] border border-cyan-400/10 bg-[#061127] p-7">
       <div className="text-2xl font-black">{title}</div>
@@ -661,9 +740,9 @@ function DataPreview({ title, data }) {
         <table className="w-full min-w-[800px] text-left text-sm">
           <tbody>
             {!data.length && <tr><td className="p-6 text-center text-slate-500">Nenhum dado carregado.</td></tr>}
-            {data.slice(0, 20).map((row, i) => (
+            {data.slice(0, 20).map((row: any, i: number) => (
               <tr key={i} className="border-b border-white/5">
-                {Object.values(row).slice(0, 6).map((v, j) => (
+                {Object.values(row as any).slice(0, 6).map((v: any, j: number) => (
                   <td key={j} className="p-3 text-slate-300">{String(v)}</td>
                 ))}
               </tr>
@@ -675,7 +754,9 @@ function DataPreview({ title, data }) {
   )
 }
 
-function ConciliacaoPanel({ conciliacao, executar }) {
+// Tela da conciliação inteligente.
+// Mostra histórico, débito, crédito, observação, confiança e status.
+function ConciliacaoPanel({ conciliacao, executar }: any) {
   return (
     <div className="mt-8 rounded-[30px] border border-cyan-400/10 bg-[#061127] p-7">
       <div className="flex items-center justify-between">
@@ -688,7 +769,7 @@ function ConciliacaoPanel({ conciliacao, executar }) {
 
       <div className="mt-7 space-y-4">
         {!conciliacao.length && <div className="rounded-2xl border border-white/10 bg-[#020b1b] p-6 text-slate-500">Nenhuma conciliação executada.</div>}
-        {conciliacao.map((item, i) => (
+        {conciliacao.map((item: any, i: number) => (
           <div key={i} className="rounded-[24px] border border-white/10 bg-[#020b1b] p-5">
             <div className="flex items-start justify-between gap-5">
               <div>
@@ -712,7 +793,9 @@ function ConciliacaoPanel({ conciliacao, executar }) {
   )
 }
 
-function MemoriaPanel({ memoria }) {
+// Tela da memória IA.
+// Mostra o que o sistema já aprendeu para a empresa atual.
+function MemoriaPanel({ memoria }: any) {
   return (
     <div className="mt-8 rounded-[30px] border border-cyan-400/10 bg-[#061127] p-7">
       <div className="text-3xl font-black">Memória IA</div>
@@ -720,7 +803,7 @@ function MemoriaPanel({ memoria }) {
 
       <div className="mt-7 space-y-4">
         {!memoria.length && <div className="rounded-2xl border border-white/10 bg-[#020b1b] p-6 text-slate-500">Nenhuma memória criada ainda.</div>}
-        {memoria.map((item, i) => (
+        {memoria.map((item: any, i: number) => (
           <div key={i} className="rounded-[24px] border border-white/10 bg-[#020b1b] p-5">
             <div className="font-black">{item.historico}</div>
             <div className="mt-3 grid gap-4 xl:grid-cols-3">
@@ -735,7 +818,8 @@ function MemoriaPanel({ memoria }) {
   )
 }
 
-function Info({ label, value }) {
+// Componente simples para mostrar informação em formato rótulo + valor.
+function Info({ label, value }: any) {
   return (
     <div>
       <div className="text-sm text-slate-500">{label}</div>
